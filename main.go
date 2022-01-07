@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/md5"
 	"errors"
 	"io/fs"
 	"log"
@@ -77,6 +78,30 @@ func listStickies() ([]*sticky, error) {
 	return stickies, nil
 }
 
+func edit(filepath string) (bool, error) {
+	before, err := getMD5(filepath)
+	if err != nil {
+		return false, err
+	}
+	err = openEditor(filepath)
+	if err != nil {
+		return false, err
+	}
+	after, err := getMD5(filepath)
+	if err != nil {
+		return false, err
+	}
+	return before != after, nil
+}
+
+func getMD5(filepath string) ([16]byte, error) {
+	binary, err := os.ReadFile(filepath)
+	if err != nil {
+		return [16]byte{}, err
+	}
+	return md5.Sum(binary), nil
+}
+
 func openEditor(filepath string) error {
 	cmd := exec.Command("vi", filepath)
 	cmd.Stdin = os.Stdin
@@ -136,11 +161,14 @@ func newItemDelegate(keys *delegateKeyMap) list.DefaultDelegate {
 		case tea.KeyMsg:
 			switch {
 			case key.Matches(msg, keys.edit):
-				if err := openEditor(item.rtf); err != nil {
+				editted, err := edit(item.rtf)
+				if err != nil {
 					return errorCmd(err)
 				}
-				if err := restartStickies(); err != nil {
-					return errorCmd(err)
+				if editted {
+					if err := restartStickies(); err != nil {
+						return errorCmd(err)
+					}
 				}
 				return redrawCmd()
 			}
