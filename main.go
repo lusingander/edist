@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -18,6 +19,7 @@ type sticky struct {
 	path     string
 	name     string
 	contents []fs.DirEntry
+	rtf      string
 }
 
 func (s *sticky) Title() string {
@@ -25,7 +27,7 @@ func (s *sticky) Title() string {
 }
 
 func (s *sticky) Description() string {
-	return s.path
+	return s.rtf
 }
 
 func (s *sticky) FilterValue() string {
@@ -43,10 +45,6 @@ func stickiesDataDir() (string, error) {
 
 func isRTFD(f fs.DirEntry) bool {
 	return f.IsDir() && filepath.Ext(f.Name()) == ".rtfd"
-}
-
-func isRTFTextData(f fs.DirEntry) bool {
-	return f.Name() == "TXT.rtf"
 }
 
 func listStickies() ([]*sticky, error) {
@@ -72,6 +70,7 @@ func listStickies() ([]*sticky, error) {
 			path:     rtfdDir,
 			name:     file.Name(),
 			contents: rtfdFiles,
+			rtf:      filepath.Join(rtfdDir, "TXT.rtf"),
 		}
 		stickies = append(stickies, sticky)
 	}
@@ -79,7 +78,7 @@ func listStickies() ([]*sticky, error) {
 }
 
 func openEditor(filepath string) error {
-	cmd := exec.Command("vi", "./foo")
+	cmd := exec.Command("vi", filepath)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -103,10 +102,80 @@ func checkOS() error {
 	return nil
 }
 
-var docStyle = lipgloss.NewStyle().Margin(1, 2)
+var (
+	docStyle = lipgloss.NewStyle().Margin(1, 2)
+
+	statusMessageStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.AdaptiveColor{Light: "201", Dark: "201"}).
+				Render
+)
+
+type errorMsg struct {
+	e error
+}
+
+func errorCmd(e error) tea.Cmd {
+	return func() tea.Msg { return errorMsg{e} }
+}
+
+type redrawMsg struct{}
+
+func redrawCmd() tea.Cmd {
+	return func() tea.Msg { return redrawMsg{} }
+}
+
+func newItemDelegate(keys *delegateKeyMap) list.DefaultDelegate {
+	d := list.NewDefaultDelegate()
+
+	d.UpdateFunc = func(msg tea.Msg, m *list.Model) tea.Cmd {
+		item, ok := m.SelectedItem().(*sticky)
+		if !ok {
+			return nil
+		}
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			switch {
+			case key.Matches(msg, keys.edit):
+				if err := openEditor(item.rtf); err != nil {
+					return errorCmd(err)
+				}
+				if err := restartStickies(); err != nil {
+					return errorCmd(err)
+				}
+				return redrawCmd()
+			}
+		}
+		return nil
+	}
+
+	help := []key.Binding{keys.edit}
+	d.ShortHelpFunc = func() []key.Binding {
+		return help
+	}
+	d.FullHelpFunc = func() [][]key.Binding {
+		return [][]key.Binding{help}
+	}
+
+	return d
+}
+
+type delegateKeyMap struct {
+	edit key.Binding
+}
+
+func newDelegateKeyMap() *delegateKeyMap {
+	return &delegateKeyMap{
+		edit: key.NewBinding(
+			key.WithKeys("enter"),
+			key.WithHelp("enter", "edit"),
+		),
+	}
+}
 
 type model struct {
 	list list.Model
+
+	currentSize tea.WindowSizeMsg
 }
 
 func (m model) Init() tea.Cmd {
@@ -116,12 +185,21 @@ func (m model) Init() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if msg.String() == "ctrl+c" {
-			return m, nil
+		switch msg.String() {
+		case "ctrl+c":
+			return m, tea.Quit
 		}
 	case tea.WindowSizeMsg:
 		top, right, bottom, left := docStyle.GetMargin()
 		m.list.SetSize(msg.Width-left-right, msg.Height-top-bottom)
+		m.currentSize = msg
+	case redrawMsg:
+		cmd := func() tea.Msg { return m.currentSize }
+		return m, cmd
+	case errorMsg:
+		errorMessage := statusMessageStyle(msg.e.Error())
+		cmd := m.list.NewStatusMessage(errorMessage)
+		return m, cmd
 	}
 
 	var cmd tea.Cmd
@@ -138,7 +216,9 @@ func initModel(stickies []*sticky) model {
 	for i, s := range stickies {
 		items[i] = s
 	}
-	m := model{list: list.NewModel(items, list.NewDefaultDelegate(), 0, 0)}
+	delegateKeys := newDelegateKeyMap()
+	delegate := newItemDelegate(delegateKeys)
+	m := model{list: list.NewModel(items, delegate, 0, 0)}
 	m.list.Title = "EDIST"
 	return m
 }
