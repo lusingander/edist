@@ -133,6 +133,16 @@ func (m model) View() string {
 	return docStyle.Render(m.list.View())
 }
 
+func initModel(stickies []*sticky) model {
+	items := make([]list.Item, len(stickies))
+	for i, s := range stickies {
+		items[i] = s
+	}
+	m := model{list: list.NewModel(items, list.NewDefaultDelegate(), 0, 0)}
+	m.list.Title = "EDIST"
+	return m
+}
+
 func run(args []string) error {
 	if err := checkOS(); err != nil {
 		return err
@@ -141,14 +151,7 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
-
-	items := make([]list.Item, len(stickies))
-	for i, s := range stickies {
-		items[i] = s
-	}
-	m := model{list: list.NewModel(items, list.NewDefaultDelegate(), 0, 0)}
-	m.list.Title = "EDIST"
-
+	m := initModel(stickies)
 	p := tea.NewProgram(m)
 	p.EnterAltScreen()
 	return p.Start()
