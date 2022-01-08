@@ -18,21 +18,25 @@ import (
 
 type sticky struct {
 	path     string
-	name     string
+	rtfd     fs.DirEntry
 	contents []fs.DirEntry
 	rtf      string
 }
 
 func (s *sticky) Title() string {
-	return s.name
+	return s.rtfd.Name()
 }
 
 func (s *sticky) Description() string {
-	return s.rtf
+	info, err := s.rtfd.Info()
+	if err != nil {
+		return "***"
+	}
+	return info.ModTime().Format("2006/01/02 03:04:56")
 }
 
 func (s *sticky) FilterValue() string {
-	return s.name
+	return s.rtfd.Name()
 }
 
 func stickiesDataDir() (string, error) {
@@ -69,7 +73,7 @@ func listStickies() ([]*sticky, error) {
 		}
 		sticky := &sticky{
 			path:     rtfdDir,
-			name:     file.Name(),
+			rtfd:     file,
 			contents: rtfdFiles,
 			rtf:      filepath.Join(rtfdDir, "TXT.rtf"),
 		}
