@@ -1,3 +1,5 @@
-# edist
+# Edist
 
-edit [Stickies](https://en.wikipedia.org/wiki/Stickies_(Apple)) in terminal
+Edit [Stickies](https://en.wikipedia.org/wiki/Stickies_(Apple)) in terminal
+
+<img src="./resources/screenshot.gif" width=600>
