@@ -264,8 +264,7 @@ func run(args []string) error {
 		return err
 	}
 	m := initModel(stickies)
-	p := tea.NewProgram(m)
-	p.EnterAltScreen()
+	p := tea.NewProgram(m, tea.WithAltScreen())
 	return p.Start()
 }
 
