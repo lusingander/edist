@@ -148,8 +148,8 @@ func errorCmd(e error) tea.Cmd {
 
 type redrawMsg struct{}
 
-func redrawCmd() tea.Cmd {
-	return func() tea.Msg { return redrawMsg{} }
+func redrawCmd() tea.Msg {
+	return redrawMsg{}
 }
 
 func newItemDelegate(keys *delegateKeyMap) list.DefaultDelegate {
@@ -173,7 +173,7 @@ func newItemDelegate(keys *delegateKeyMap) list.DefaultDelegate {
 						return errorCmd(err)
 					}
 				}
-				return redrawCmd()
+				return tea.Batch(redrawCmd, tea.HideCursor)
 			}
 		}
 		return nil
