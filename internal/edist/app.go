@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 )
 
 type sticky struct {
@@ -148,8 +149,8 @@ func errorCmd(e error) tea.Cmd {
 
 type redrawMsg struct{}
 
-func redrawCmd() tea.Cmd {
-	return func() tea.Msg { return redrawMsg{} }
+func redrawCmd() tea.Msg {
+	return redrawMsg{}
 }
 
 func newItemDelegate(keys *delegateKeyMap) list.DefaultDelegate {
@@ -165,6 +166,15 @@ func newItemDelegate(keys *delegateKeyMap) list.DefaultDelegate {
 			switch {
 			case key.Matches(msg, keys.edit):
 				editted, err := edit(item.rtf)
+
+				// Hack: re-enable the altscreen by printing directly to
+				// stdout.
+				//
+				// Vim also runs in the altscreen and exits the altsceen on
+				// exit. As a result, we need to manually jump back in after
+				// Vim closes.
+				termenv.AltScreen()
+
 				if err != nil {
 					return errorCmd(err)
 				}
@@ -173,7 +183,7 @@ func newItemDelegate(keys *delegateKeyMap) list.DefaultDelegate {
 						return errorCmd(err)
 					}
 				}
-				return redrawCmd()
+				return tea.Batch(redrawCmd, tea.HideCursor)
 			}
 		}
 		return nil
