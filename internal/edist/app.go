@@ -1,13 +1,9 @@
 package edist
 
 import (
-	"crypto/md5"
-	"errors"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -80,55 +76,6 @@ func listStickies() ([]*sticky, error) {
 		stickies = append(stickies, sticky)
 	}
 	return stickies, nil
-}
-
-func edit(filepath string) (bool, error) {
-	before, err := getMD5(filepath)
-	if err != nil {
-		return false, err
-	}
-	err = openEditor(filepath)
-	if err != nil {
-		return false, err
-	}
-	after, err := getMD5(filepath)
-	if err != nil {
-		return false, err
-	}
-	return before != after, nil
-}
-
-func getMD5(filepath string) ([16]byte, error) {
-	binary, err := os.ReadFile(filepath)
-	if err != nil {
-		return [16]byte{}, err
-	}
-	return md5.Sum(binary), nil
-}
-
-func openEditor(filepath string) error {
-	cmd := exec.Command("vi", filepath)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
-}
-
-func restartStickies() error {
-	if err := exec.Command("killall", "Stickies").Run(); err != nil {
-		return err
-	}
-	if err := exec.Command("open", "-a", "stickies").Run(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func checkOS() error {
-	if runtime.GOOS != "darwin" {
-		return errors.New("unsupported os")
-	}
-	return nil
 }
 
 var (
